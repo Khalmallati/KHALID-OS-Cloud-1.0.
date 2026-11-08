@@ -1,0 +1,51 @@
+
+name: Build KHALID OS Cloud ISO
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Extract KHALID OS source
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          mkdir -p source
+          unzip -q KHALID-OS-Cloud-1.0-source.zip -d source
+          ls -la source
+
+      - name: Build Debian 12 i386 ISO
+        run: |
+          docker run --privileged --rm \
+            -v "$GITHUB_WORKSPACE/source:/work" \
+            -w /work \
+            debian:bookworm bash -lc '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                live-build debootstrap squashfs-tools xorriso \
+                isolinux syslinux-common syslinux-utils \
+                dosfstools mtools ca-certificates
+              chmod +x auto/config scripts/*.sh
+              ./scripts/check-host.sh
+              ./scripts/build-iso.sh
+            '
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: KHALID-OS-Cloud-ISO
+          path: |
+            source/output/KHALID-OS-Cloud-1.0-i386.iso
+            source/output/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
